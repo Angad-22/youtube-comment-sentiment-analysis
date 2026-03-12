@@ -93,3 +93,6 @@ target/
 # Model artifacts
 lgbm_model.pkl
 tfidf_vectorizer.pkl
+
+.dvc/cache
+.dvc/tmp
