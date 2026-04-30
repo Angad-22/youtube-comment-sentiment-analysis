@@ -39,7 +39,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ap-south-1
+          AWS_DEFAULT_REGION: ap-south-1  # Replace with your AWS region
         run: |
           dvc push
 
@@ -82,7 +82,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ap-south-1
         run: |
-          pytest scripts/test_model_signature.py   
+          pytest scripts/test_model_signature.py
 
       - name: Run model performance test
         env:
@@ -90,7 +90,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ap-south-1
         run: |
-          pytest scripts/test_model_performance.py    
+          pytest scripts/test_model_performance.py
 
       - name: Promote model to production
         if: success()
@@ -98,7 +98,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ap-south-1
-        run: python scripts/promote_model.py  
+        run: python scripts/promote_model.py
 
       - name: Start Flask App
         env:
@@ -110,4 +110,4 @@ jobs:
 
       - name: Run Flask Api tests
         run:
-          pytest scripts/test_flask_api.py          
+          pytest scripts/test_flask_api.py    

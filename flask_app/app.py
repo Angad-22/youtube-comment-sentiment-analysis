@@ -6,6 +6,7 @@ matplotlib.use('Agg')  # Use non-interactive backend before importing pyplot
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import io
+import traceback
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import mlflow
@@ -50,18 +51,21 @@ def preprocess_comment(comment):
         print(f"Error in preprocessing comment: {e}")
         return comment
 
-# Load the model and vectorizer from the model registry and local storage
-def load_model_and_vectorizer(model_name, model_version, vectorizer_path):
-    # Set MLflow tracking URI to your server
-    mlflow.set_tracking_uri("http://ec2-13-201-62-173.ap-south-1.compute.amazonaws.com:5000/")  # Replace with your MLflow tracking URI
+# Load the model and vectorizer from the model registry and MLflow artifacts
+def load_model_and_vectorizer(model_name, model_stage):
+    mlflow.set_tracking_uri("http://ec2-13-201-62-173.ap-south-1.compute.amazonaws.com:5000/")
     client = MlflowClient()
-    model_uri = f"models:/{model_name}/{model_version}"
+    model_uri = f"models:/{model_name}/{model_stage}"
     model = mlflow.pyfunc.load_model(model_uri)
-    vectorizer = joblib.load(vectorizer_path)  # Load the vectorizer
+    # Fetch the run that produced this model version to get the matching vectorizer
+    latest_versions = client.get_latest_versions(model_name, stages=[model_stage])
+    run_id = latest_versions[0].run_id
+    vectorizer_path = client.download_artifacts(run_id, "tfidf_vectorizer.pkl")
+    vectorizer = joblib.load(vectorizer_path)
     return model, vectorizer
 
 # Initialize the model and vectorizer
-model, vectorizer = load_model_and_vectorizer("my_model", "1", "./tfidf_vectorizer.pkl")  # Update paths and versions as needed
+model, vectorizer = load_model_and_vectorizer("yt_chrome_plugin_model", "Staging")
 
 @app.route('/')
 def home():
@@ -81,18 +85,23 @@ def predict_with_timestamps():
 
         # Preprocess each comment before vectorizing
         preprocessed_comments = [preprocess_comment(comment) for comment in comments]
-        
-        # Transform comments using the vectorizer
-        transformed_comments = vectorizer.transform(preprocessed_comments)
-        
+
+        # Transform and convert to DataFrame — pyfunc model requires named columns
+        transformed_sparse = vectorizer.transform(preprocessed_comments)
+        transformed_df = pd.DataFrame(
+            transformed_sparse.toarray(),
+            columns=vectorizer.get_feature_names_out()
+        )
+
         # Make predictions
-        predictions = model.predict(transformed_comments).tolist()  # Convert to list
-        
+        predictions = model.predict(transformed_df).tolist()
+
         # Convert predictions to strings for consistency
         predictions = [str(pred) for pred in predictions]
     except Exception as e:
+        app.logger.error(traceback.format_exc())
         return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
-    
+
     # Return the response with original comments, predicted sentiments, and timestamps
     response = [{"comment": comment, "sentiment": sentiment, "timestamp": timestamp} for comment, sentiment, timestamp in zip(comments, predictions, timestamps)]
     return jsonify(response)
@@ -108,18 +117,23 @@ def predict():
     try:
         # Preprocess each comment before vectorizing
         preprocessed_comments = [preprocess_comment(comment) for comment in comments]
-        
-        # Transform comments using the vectorizer
-        transformed_comments = vectorizer.transform(preprocessed_comments)
-        
+
+        # Transform and convert to DataFrame — pyfunc model requires named columns
+        transformed_sparse = vectorizer.transform(preprocessed_comments)
+        transformed_df = pd.DataFrame(
+            transformed_sparse.toarray(),
+            columns=vectorizer.get_feature_names_out()
+        )
+
         # Make predictions
-        predictions = model.predict(transformed_comments).tolist()  # Convert to list
-        
+        predictions = model.predict(transformed_df).tolist()
+
         # Convert predictions to strings for consistency
         predictions = [str(pred) for pred in predictions]
     except Exception as e:
+        app.logger.error(traceback.format_exc())
         return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
-    
+
     # Return the response with original comments and predicted sentiments
     response = [{"comment": comment, "sentiment": sentiment} for comment, sentiment in zip(comments, predictions)]
     return jsonify(response)
@@ -289,4 +303,4 @@ def generate_trend_graph():
         return jsonify({"error": f"Trend graph generation failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)  

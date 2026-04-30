@@ -4,7 +4,6 @@ import os
 from sklearn.model_selection import train_test_split
 import yaml
 import logging
-
 # Logging configuration
 logger = logging.getLogger('data_ingestion')
 logger.setLevel(logging.DEBUG)
